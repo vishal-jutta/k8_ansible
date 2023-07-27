@@ -3,14 +3,14 @@
   hosts: all
   tasks:
    - name: Create a k8s namespace--Guestbook
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        name: guestbook
        api_version: v1
        kind: Namespace
        state: present
      delegate_to: localhost
    - name: Create a Service for redis-master application
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: v1
@@ -32,7 +32,7 @@
              role: master
      delegate_to: localhost
    - name: Create deployment of redis master application
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: apps/v1 #  for k8s versions before 1.9.0 use apps/v1beta2  and before 1.8.0 use extensions/v1beta1
@@ -65,7 +65,7 @@
                  - containerPort: 6379
      delegate_to: localhost    
    - name: Create service for Redis-Slave
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: v1
@@ -86,7 +86,7 @@
              role: slave
      delegate_to: localhost
    - name: Create Deployment for redis slave
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: apps/v1 #  for k8s versions before 1.9.0 use apps/v1beta2  and before 1.8.0 use extensions/v1beta1
@@ -122,7 +122,7 @@
                  - containerPort: 6379
      delegate_to: localhost
    - name: Create service for front end application
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: v1
@@ -146,7 +146,7 @@
              tier: frontend
      delegate_to: localhost
    - name: Deploy front end application
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: apps/v1 #  for k8s versions before 1.9.0 use apps/v1beta2  and before 1.8.0 use extensions/v1beta1
@@ -185,7 +185,7 @@
                  - containerPort: 80
      delegate_to: localhost 
    - name: Create route for front end application
-     kubernetes.core.k8s:
+     redhat.openshift.k8s:
        state: present   
        definition:
          apiVersion: v1
