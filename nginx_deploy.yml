@@ -1,31 +1,24 @@
 ---
 - name: Deploy sample application to OpenShift
-  hosts: localhost
+  hosts: all
   tasks:
-    - name: Set kubeconfig
-      set_fact:
-        kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config', true) }}"
-
-    - name: Create a new project
-      k8s:
-        kubeconfig: "{{ kubeconfig }}"
-        state: present
-        definition:
-          apiVersion: project.openshift.io/v1
-          kind: Project
-          metadata:
-            name: sample-project
+    - name: Create a Openshift namespace
+     redhat.openshift.k8s:
+       name: sbi_demo
+       api_version: v1
+       kind: Namespace
+       state: present
+     delegate_to: localhost
 
     - name: Create deployment
-      k8s:
-        kubeconfig: "{{ kubeconfig }}"
+      redhat.openshift.k8s:
         state: present
         definition:
           apiVersion: apps/v1
           kind: Deployment
           metadata:
             name: sample-deployment
-            namespace: sample-project
+            namespace: sbi_demo
           spec:
             replicas: 2
             selector:
@@ -43,15 +36,14 @@
                   - containerPort: 80
 
     - name: Create service
-      k8s:
-        kubeconfig: "{{ kubeconfig }}"
+      redhat.openshift.k8s:
         state: present
         definition:
           apiVersion: v1
           kind: Service
           metadata:
             name: sample-service
-            namespace: sample-project
+            namespace: sbi_demo
           spec:
             selector:
               app: sample-app
@@ -61,15 +53,14 @@
                 targetPort: 80
 
     - name: Create route
-      k8s:
-        kubeconfig: "{{ kubeconfig }}"
+      redhat.openshift.k8s:
         state: present
         definition:
-          apiVersion: route.openshift.io/v1
+          apiVersion: v1
           kind: Route
           metadata:
             name: sample-route
-            namespace: sample-project
+            namespace: sbi_demo
           spec:
             to:
               kind: Service
