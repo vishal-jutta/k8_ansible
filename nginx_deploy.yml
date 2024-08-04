@@ -31,7 +31,7 @@
               spec:
                 containers:
                 - name: sample-container
-                  image: nginx:latest
+                  image: registry.access.redhat.com/ubi8/nginx-118
                   resources:
                    requests:
                      cpu: 100m
