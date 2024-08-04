@@ -8,7 +8,7 @@
        api_version: v1
        kind: Namespace
        state: present
-     delegate_to: localhost
+      delegate_to: localhost
 
     - name: Create deployment
       redhat.openshift.k8s:
@@ -34,6 +34,7 @@
                   image: nginx:latest
                   ports:
                   - containerPort: 80
+      delegate_to: localhost
 
     - name: Create service
       redhat.openshift.k8s:
@@ -51,6 +52,7 @@
               - protocol: TCP
                 port: 80
                 targetPort: 80
+      delegate_to: localhost
 
     - name: Create route
       redhat.openshift.k8s:
@@ -69,3 +71,4 @@
               targetPort: 80
             tls:
               termination: edge
+      delegate_to: localhost
