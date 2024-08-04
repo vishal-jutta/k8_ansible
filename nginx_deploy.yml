@@ -3,7 +3,7 @@
   hosts: all
   tasks:
     - name: Create a Openshift namespace
-     redhat.openshift.k8s:
+      redhat.openshift.k8s:
        name: sbi_demo
        api_version: v1
        kind: Namespace
