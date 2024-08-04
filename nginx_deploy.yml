@@ -1,0 +1,80 @@
+---
+- name: Deploy sample application to OpenShift
+  hosts: localhost
+  tasks:
+    - name: Set kubeconfig
+      set_fact:
+        kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config', true) }}"
+
+    - name: Create a new project
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: project.openshift.io/v1
+          kind: Project
+          metadata:
+            name: sample-project
+
+    - name: Create deployment
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: sample-deployment
+            namespace: sample-project
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: sample-app
+            template:
+              metadata:
+                labels:
+                  app: sample-app
+              spec:
+                containers:
+                - name: sample-container
+                  image: nginx:latest
+                  ports:
+                  - containerPort: 80
+
+    - name: Create service
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: sample-service
+            namespace: sample-project
+          spec:
+            selector:
+              app: sample-app
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 80
+
+    - name: Create route
+      k8s:
+        kubeconfig: "{{ kubeconfig }}"
+        state: present
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: sample-route
+            namespace: sample-project
+          spec:
+            to:
+              kind: Service
+              name: sample-service
+            port:
+              targetPort: 80
+            tls:
+              termination: edge
