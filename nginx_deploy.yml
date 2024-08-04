@@ -4,7 +4,7 @@
   tasks:
     - name: Create a Openshift namespace
       redhat.openshift.k8s:
-       name: sbi_demo
+       name: sbidemo
        api_version: v1
        kind: Namespace
        state: present
@@ -18,7 +18,7 @@
           kind: Deployment
           metadata:
             name: sample-deployment
-            namespace: sbi_demo
+            namespace: sbidemo
           spec:
             replicas: 2
             selector:
@@ -44,7 +44,7 @@
           kind: Service
           metadata:
             name: sample-service
-            namespace: sbi_demo
+            namespace: sbidemo
           spec:
             selector:
               app: sample-app
@@ -62,7 +62,7 @@
           kind: Route
           metadata:
             name: sample-route
-            namespace: sbi_demo
+            namespace: sbidemo
           spec:
             to:
               kind: Service
