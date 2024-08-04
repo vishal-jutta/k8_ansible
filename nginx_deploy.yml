@@ -32,6 +32,10 @@
                 containers:
                 - name: sample-container
                   image: nginx:latest
+                  resources:
+                   requests:
+                     cpu: 100m
+                     memory: 100Mi
                   ports:
                   - containerPort: 80
       delegate_to: localhost
