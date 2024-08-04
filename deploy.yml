@@ -168,7 +168,7 @@
              spec:
                containers:
                - name: php-redis
-                 image: gcr.io/google-samples/gb-frontend:v4
+                 image: gcr.io/google-samples/gb-frontend
                  resources:
                    requests:
                      cpu: 100m
