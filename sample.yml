@@ -1,12 +1,22 @@
 ---
-- name: Deploy Jenkins on OpenShift
+- name: Deploy WordPress on OpenShift
   hosts: localhost
   gather_facts: false
 
   vars:
-    namespace: jenkins
-    app_name: jenkins
-    jenkins_image: "quay.io/openshift/origin-jenkins:4.13"
+    namespace: wordpress
+    wp_app_name: wordpress
+    db_app_name: mariadb
+
+    # Images
+    wp_image: "docker.io/library/wordpress:latest"
+    mariadb_image: "docker.io/library/mariadb:10.6"
+
+    # DB credentials
+    db_name: "wordpressdb"
+    db_user: "wpuser"
+    db_password: "StrongWPPassword123"
+    db_root_password: "StrongRootPassword123"
 
   tasks:
 
@@ -17,7 +27,28 @@
         name: "{{ namespace }}"
         state: present
 
-    - name: Create Persistent Volume Claim for Jenkins
+    # ---------------------
+    # DB SECRETS
+    # ---------------------
+    - name: Create Secret for MariaDB
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: mariadb-secret
+          stringData:
+            MYSQL_DATABASE: "{{ db_name }}"
+            MYSQL_USER: "{{ db_user }}"
+            MYSQL_PASSWORD: "{{ db_password }}"
+            MYSQL_ROOT_PASSWORD: "{{ db_root_password }}"
+
+    # ---------------------
+    # PVC for DB & WordPress
+    # ---------------------
+    - name: PVC for MariaDB
       kubernetes.core.k8s:
         state: present
         namespace: "{{ namespace }}"
@@ -25,80 +56,157 @@
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
-            name: jenkins-pvc
+            name: mariadb-pvc
           spec:
-            accessModes:
-              - ReadWriteOnce
+            accessModes: [ "ReadWriteOnce" ]
             resources:
               requests:
                 storage: 5Gi
 
-    - name: Create Jenkins Deployment
+    - name: PVC for WordPress
       kubernetes.core.k8s:
-        namespace: "{{ namespace }}"
         state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: wordpress-pvc
+          spec:
+            accessModes: [ "ReadWriteOnce" ]
+            resources:
+              requests:
+                storage: 5Gi
+
+    # ---------------------
+    # MariaDB Deployment
+    # ---------------------
+    - name: Deploy MariaDB
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
         definition:
           apiVersion: apps/v1
           kind: Deployment
           metadata:
-            name: "{{ app_name }}"
+            name: "{{ db_app_name }}"
           spec:
             replicas: 1
             selector:
               matchLabels:
-                app: "{{ app_name }}"
+                app: "{{ db_app_name }}"
             template:
               metadata:
                 labels:
-                  app: "{{ app_name }}"
+                  app: "{{ db_app_name }}"
               spec:
-                serviceAccountName: jenkins
                 containers:
-                  - name: jenkins
-                    image: "{{ jenkins_image }}"
+                  - name: mariadb
+                    image: "{{ mariadb_image }}"
+                    envFrom:
+                      - secretRef:
+                          name: mariadb-secret
                     ports:
-                      - containerPort: 8080
-                      - containerPort: 50000
+                      - containerPort: 3306
                     volumeMounts:
-                      - name: jenkins-home
-                        mountPath: /var/lib/jenkins
+                      - name: mariadb-storage
+                        mountPath: /var/lib/mysql
                 volumes:
-                  - name: jenkins-home
+                  - name: mariadb-storage
                     persistentVolumeClaim:
-                      claimName: jenkins-pvc
+                      claimName: mariadb-pvc
 
-    - name: Create Jenkins Service
+    - name: Create Service for MariaDB
       kubernetes.core.k8s:
-        namespace: "{{ namespace }}"
         state: present
+        namespace: "{{ namespace }}"
         definition:
           apiVersion: v1
           kind: Service
           metadata:
-            name: "{{ app_name }}"
+            name: "{{ db_app_name }}"
+          spec:
+            ports:
+              - port: 3306
+                targetPort: 3306
+            selector:
+              app: "{{ db_app_name }}"
+
+    # ---------------------
+    # WordPress Deployment
+    # ---------------------
+    - name: Deploy WordPress
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ wp_app_name }}"
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: "{{ wp_app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ wp_app_name }}"
+              spec:
+                containers:
+                  - name: wordpress
+                    image: "{{ wp_image }}"
+                    env:
+                      - name: WORDPRESS_DB_HOST
+                        value: "{{ db_app_name }}"
+                      - name: WORDPRESS_DB_NAME
+                        value: "{{ db_name }}"
+                      - name: WORDPRESS_DB_USER
+                        value: "{{ db_user }}"
+                      - name: WORDPRESS_DB_PASSWORD
+                        value: "{{ db_password }}"
+                    ports:
+                      - containerPort: 80
+                    volumeMounts:
+                      - name: wordpress-storage
+                        mountPath: /var/www/html
+                volumes:
+                  - name: wordpress-storage
+                    persistentVolumeClaim:
+                      claimName: wordpress-pvc
+
+    - name: Create WordPress Service
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ wp_app_name }}"
           spec:
             selector:
-              app: "{{ app_name }}"
+              app: "{{ wp_app_name }}"
             ports:
-              - name: web
-                port: 8080
-                targetPort: 8080
-              - name: jnlp
-                port: 50000
-                targetPort: 50000
+              - port: 80
+                targetPort: 80
 
-    - name: Create Jenkins Route
+    # ---------------------
+    # Route for WordPress
+    # ---------------------
+    - name: Create Route for WordPress
       kubernetes.core.k8s:
-        namespace: "{{ namespace }}"
         state: present
+        namespace: "{{ namespace }}"
         definition:
           apiVersion: route.openshift.io/v1
           kind: Route
           metadata:
-            name: "{{ app_name }}"
+            name: "{{ wp_app_name }}"
           spec:
             to:
               kind: Service
-              name: "{{ app_name }}"
+              name: "{{ wp_app_name }}"
             port:
-              targetPort: web
+              targetPort: 80
