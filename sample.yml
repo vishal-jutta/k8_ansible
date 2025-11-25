@@ -1,0 +1,76 @@
+---
+- name: Deploy Sample App on OpenShift
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    namespace: sample-app
+    app_name: sample-app
+    image: quay.io/redhat-developer/hello-openshift:latest
+
+  tasks:
+
+    - name: Ensure namespace exists
+      kubernetes.core.k8s:
+        api_version: v1
+        kind: Namespace
+        name: "{{ namespace }}"
+        state: present
+
+    - name: Create Deployment
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: "{{ app_name }}"
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: "{{ app_name }}"
+            template:
+              metadata:
+                labels:
+                  app: "{{ app_name }}"
+              spec:
+                containers:
+                  - name: "{{ app_name }}"
+                    image: "{{ image }}"
+                    ports:
+                      - containerPort: 8080
+
+    - name: Create Service
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: "{{ app_name }}"
+          spec:
+            selector:
+              app: "{{ app_name }}"
+            ports:
+              - name: http
+                port: 80
+                targetPort: 8080
+
+    - name: Create Route (OpenShift)
+      kubernetes.core.k8s:
+        state: present
+        namespace: "{{ namespace }}"
+        definition:
+          apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: "{{ app_name }}"
+          spec:
+            to:
+              kind: Service
+              name: "{{ app_name }}"
+            port:
+              targetPort: http
