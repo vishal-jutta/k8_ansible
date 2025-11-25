@@ -1,12 +1,12 @@
 ---
-- name: Deploy Sample App on OpenShift
+- name: Deploy Jenkins on OpenShift
   hosts: localhost
   gather_facts: false
 
   vars:
-    namespace: sample-app
-    app_name: sample-app
-    image: quay.io/redhat-developer/hello-openshift:latest
+    namespace: jenkins
+    app_name: jenkins
+    jenkins_image: "quay.io/openshift/origin-jenkins:4.13"
 
   tasks:
 
@@ -17,10 +17,26 @@
         name: "{{ namespace }}"
         state: present
 
-    - name: Create Deployment
+    - name: Create Persistent Volume Claim for Jenkins
       kubernetes.core.k8s:
         state: present
         namespace: "{{ namespace }}"
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: jenkins-pvc
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 5Gi
+
+    - name: Create Jenkins Deployment
+      kubernetes.core.k8s:
+        namespace: "{{ namespace }}"
+        state: present
         definition:
           apiVersion: apps/v1
           kind: Deployment
@@ -36,16 +52,25 @@
                 labels:
                   app: "{{ app_name }}"
               spec:
+                serviceAccountName: jenkins
                 containers:
-                  - name: "{{ app_name }}"
-                    image: "{{ image }}"
+                  - name: jenkins
+                    image: "{{ jenkins_image }}"
                     ports:
                       - containerPort: 8080
+                      - containerPort: 50000
+                    volumeMounts:
+                      - name: jenkins-home
+                        mountPath: /var/lib/jenkins
+                volumes:
+                  - name: jenkins-home
+                    persistentVolumeClaim:
+                      claimName: jenkins-pvc
 
-    - name: Create Service
+    - name: Create Jenkins Service
       kubernetes.core.k8s:
-        state: present
         namespace: "{{ namespace }}"
+        state: present
         definition:
           apiVersion: v1
           kind: Service
@@ -55,14 +80,17 @@
             selector:
               app: "{{ app_name }}"
             ports:
-              - name: http
-                port: 80
+              - name: web
+                port: 8080
                 targetPort: 8080
+              - name: jnlp
+                port: 50000
+                targetPort: 50000
 
-    - name: Create Route (OpenShift)
+    - name: Create Jenkins Route
       kubernetes.core.k8s:
-        state: present
         namespace: "{{ namespace }}"
+        state: present
         definition:
           apiVersion: route.openshift.io/v1
           kind: Route
@@ -73,4 +101,4 @@
               kind: Service
               name: "{{ app_name }}"
             port:
-              targetPort: http
+              targetPort: web
